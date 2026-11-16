@@ -22,31 +22,25 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-// Handle CORS preflight
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-// Determine base URL dynamically
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTPS_HOST'] ?? '192.168.1.12';
-// $host = $_SERVER['HTTP_HOST'] ?? '127.0.0.1';
 $baseUrl = $scheme . '://' . $host;
 
-// Parse request path
 $requestUri = $_SERVER['REQUEST_URI'];
 $path = parse_url($requestUri, PHP_URL_PATH);
 $path = rtrim($path, '/');
 
-// Load video database
 $dbFile = __DIR__ . '/videodb.json';
 $ratingsFile = __DIR__ . '/ratings.json';
 
 $groupedVideos = file_exists($dbFile) ? json_decode(file_get_contents($dbFile), true) : [];
 $ratings = file_exists($ratingsFile) ? json_decode(file_get_contents($ratingsFile), true) : [];
 
-// Merge ratings
 foreach ($groupedVideos as $baseName => &$data) {
     if (isset($ratings[$baseName])) {
         $data['metadata']['rating'] = $ratings[$baseName];
@@ -54,9 +48,6 @@ foreach ($groupedVideos as $baseName => &$data) {
 }
 unset($data);
 
-/**
- * Build a properly encoded URL from a filesystem-style path
- */
 function makeUrl(string $path, string $baseUrl): string {
     $path = str_replace('\\', '/', $path);
     $path = preg_replace('#^\./#', '', $path);
@@ -76,9 +67,6 @@ function formatBytes(int $bytes): string {
     return $bytes . ' B';
 }
 
-/**
- * Resolve the cover/thumbnail image URL
- */
 function resolveThumbnail(array $data, string $baseName, string $baseUrl): string {
     $coversDir = 'covers';
     foreach (['.webp', '.jpg', '.jpeg', '.png'] as $ext) {
@@ -98,9 +86,6 @@ function resolveThumbnail(array $data, string $baseName, string $baseUrl): strin
     return makeUrl('covers/placeholder.jpg', $baseUrl);
 }
 
-/**
- * Resolve preview video URL
- */
 function resolvePreview(string $baseName, string $baseUrl): string {
     $previewsDir = 'previews';
     if (file_exists(__DIR__ . '/' . $previewsDir . '/' . $baseName . '.mp4')) {
@@ -109,14 +94,9 @@ function resolvePreview(string $baseName, string $baseUrl): string {
     return '';
 }
 
-/**
- * Build a DeoScene (scene detail) response.
- * Matches XBVR's DeoScene struct.
- */
 function buildDeoScene(string $baseName, array $data, string $baseUrl): array {
     $metadata = $data['metadata'] ?? [];
 
-    // --- Encodings (video sources grouped by quality/file) ---
     $encodings = [];
     $videos = $data['videos'] ?? [];
     usort($videos, function($a, $b) { return strcmp($a['file'], $b['file']); });
@@ -155,11 +135,9 @@ function buildDeoScene(string $baseName, array $data, string $baseUrl): array {
         ];
     }
 
-    // --- Runtime ---
     $runtimeMinutes = (float)($metadata['runtime'] ?? 0);
     $videoLengthSeconds = (int)($runtimeMinutes * 60);
 
-    // --- Actors ---
     $actors = [];
     if (!empty($metadata['actors']) && is_array($metadata['actors'])) {
         foreach ($metadata['actors'] as $idx => $actor) {
@@ -167,7 +145,6 @@ function buildDeoScene(string $baseName, array $data, string $baseUrl): array {
         }
     }
 
-    // --- Categories ---
     $categories = [];
     if (!empty($metadata['genres']) && is_array($metadata['genres'])) {
         foreach ($metadata['genres'] as $idx => $genre) {
@@ -175,21 +152,17 @@ function buildDeoScene(string $baseName, array $data, string $baseUrl): array {
         }
     }
 
-    // --- Paysite/Studio ---
     $paysite = [
         'id' => 1,
         'name' => $metadata['studio'] ?? 'Local',
         'is3rdParty' => true,
     ];
 
-    // --- Thumbnail ---
     $thumbnailUrl = resolveThumbnail($data, $baseName, $baseUrl);
     $videoPreview = resolvePreview($baseName, $baseUrl);
 
-    // --- Rating (DeoVR uses rating_avg) ---
     $ratingAvg = isset($metadata['userrating']) ? (float)$metadata['userrating'] : 0.0;
 
-    // --- Date (Unix timestamp) ---
     $dateStr = $metadata['premiered'] ?? '';
     $dateUnix = 0;
     if (!empty($dateStr)) {
@@ -199,11 +172,8 @@ function buildDeoScene(string $baseName, array $data, string $baseUrl): array {
         }
     }
 
-    // --- Scene ID ---
     $sceneId = (int)($data['id'] ?? 0);
 
-    // --- Projection ---
-    // Default for 180 SBS VR content
     $stereoMode = 'sbs';
     $screenType = 'dome';
 
@@ -239,11 +209,6 @@ function buildDeoScene(string $baseName, array $data, string $baseUrl): array {
     return $scene;
 }
 
-// ============================================================================
-// ROUTING
-// ============================================================================
-
-// Match: /deovr/{id} (numeric scene ID)
 if (preg_match('#/deovr/(\d+)$#', $path, $matches)) {
     $videoId = (int)$matches[1];
 
@@ -263,7 +228,6 @@ if (preg_match('#/deovr/(\d+)$#', $path, $matches)) {
     exit;
 }
 
-// Match: /deovr/video/{baseName}
 if (preg_match('#/deovr/video/(.+)$#', $path, $matches)) {
     $baseName = urldecode($matches[1]);
 
@@ -276,10 +240,6 @@ if (preg_match('#/deovr/video/(.+)$#', $path, $matches)) {
     exit;
 }
 
-// Match: /deovr OR /deovr/ (Library index)
-// DeoVR Library: { "scenes": [{ "name": "...", "list": [DeoListItem, ...] }], "authorized": "1" }
-// DeoListItem has video_url pointing to the scene detail endpoint (NOT the raw video file)
-
 $list = [];
 foreach ($groupedVideos as $baseName => $data) {
     $metadata = $data['metadata'] ?? [];
@@ -289,7 +249,6 @@ foreach ($groupedVideos as $baseName => $data) {
 
     $thumbnailUrl = resolveThumbnail($data, $baseName, $baseUrl);
 
-    // video_url points to the scene detail endpoint
     if (isset($data['id'])) {
         $videoUrl = $baseUrl . '/deovr/' . $data['id'];
     } else {
