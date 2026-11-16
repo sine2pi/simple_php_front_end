@@ -46,13 +46,11 @@ foreach ($groupedVideos as $baseName => &$data) {
 unset($data);
 
 function makeUrl(?string $path, ?string $baseUrl): string {
+    
     $path = $path ?? '';
     $baseUrl = $baseUrl ?? '';
-
     $path = str_replace('\\', '/', $path);
-
     $path = preg_replace('#^\./#', '', $path);
-
     $parts = explode('/', $path);
     $parts = array_map('rawurlencode', $parts);
 
@@ -60,6 +58,7 @@ function makeUrl(?string $path, ?string $baseUrl): string {
 }
 
 function resolveThumbnail(array $data, string $baseName, string $baseUrl): string {
+    
     $coversDir = 'covers';
 
     $coverCandidates = [
@@ -78,6 +77,7 @@ function resolveThumbnail(array $data, string $baseName, string $baseUrl): strin
 
     $assetDir = rtrim($data['assetDir'] ?? '', '/\\');
     $assetDir = preg_replace('#^\./#', '', $assetDir);
+    
     foreach (['.webp', '.jpg', '.jpeg', '.png'] as $ext) {
         $coverFs = __DIR__ . '/' . $assetDir . '/' . $baseName . $ext;
         if (file_exists($coverFs)) {
@@ -102,9 +102,10 @@ function resolvePreview(string $baseName, string $baseUrl): string {
 }
 
 function buildVideoDetail(string $baseName, array $data, string $baseUrl, bool $needsMediaSource): array {
+    
     $metadata = $data['metadata'] ?? [];
-
     $media = [];
+    
     if ($needsMediaSource) {
         $videos = $data['videos'] ?? [];
         usort($videos, function($a, $b) { return strcmp($a['file'], $b['file']); });
@@ -118,11 +119,10 @@ function buildVideoDetail(string $baseName, array $data, string $baseUrl, bool $
             $height = (int)($metadata['height'] ?? 2048);
             $width = (int)($metadata['width'] ?? 4096);
             $resolution = (string)$height;
-
             $absPath = __DIR__ . '/' . preg_replace('#^\./#', '', $fsPath);
             $fileSize = file_exists($absPath) ? filesize($absPath) : 0;
-
             $partLabel = sprintf("File %d/%d %sp", $i + 1, count($videos), $resolution);
+            
             if ($fileSize > 0) {
                 $partLabel .= ' - ' . formatBytes($fileSize);
             }
@@ -143,6 +143,7 @@ function buildVideoDetail(string $baseName, array $data, string $baseUrl, bool $
     }
 
     $tags = [];
+    
     if (!empty($metadata['studio'])) {
         $tags[] = ['name' => 'Studio:' . $metadata['studio']];
     }
@@ -161,10 +162,12 @@ function buildVideoDetail(string $baseName, array $data, string $baseUrl, bool $
     }
 
     $subtitles = [];
+    
     if (!empty($metadata['has_srt'])) {
         $assetDir = rtrim(str_replace('\\', '/', $data['assetDir'] ?? ''), '/');
         $assetDir = preg_replace('#^\./#', '', $assetDir);
         $srtPath = $assetDir . '/' . $baseName . '.srt';
+        
         if (file_exists(__DIR__ . '/' . $srtPath)) {
             $subtitles[] = [
                 'name' => $baseName . '.srt',
